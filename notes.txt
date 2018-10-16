@@ -1,0 +1,14 @@
+prac1
+---------
+
+Why is the rate of improvement in fitness rapid during the early stages of
+the search before slowing in later stages?
+    in the beginning there must be big fitness differences in each tournament, due to random initialisation
+    the differences disappear as fittest individuals are picked
+
+    why does avg fitness in gen increase at all?
+        tournament selection: best of 3
+
+Switched to individuals of real values from [0, 1]
+    why is the fitness improvement linear?
+      because mutation did not check bounds

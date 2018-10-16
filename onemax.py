@@ -5,6 +5,7 @@ from deap import creator
 from deap import tools
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMax)
@@ -16,13 +17,12 @@ toolbox = base.Toolbox()
 #                      which corresponds to integers sampled uniformly
 #                      from the range [0,1] (i.e. 0 or 1 with equal
 #                      probability)
-toolbox.register("attr_bool", random.randint, 0, 1)
+toolbox.register("attr_realyo", random.random)
 
 # Structure initializers
 #                         define 'individual' to be an individual
 #                         consisting of 100 'attr_bool' elements ('genes')
-toolbox.register("individual", tools.initRepeat, creator.Individual,
-    toolbox.attr_bool, 100)
+toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_realyo, 100)
 
 # define the population to be a list of individuals
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
@@ -38,11 +38,27 @@ def evalOneMax(individual):
 toolbox.register("evaluate", evalOneMax)
 
 # register the crossover operator
-toolbox.register("mate", tools.cxTwoPoint)
+toolbox.register("mate", tools.cxUniform)
+
+
+def checkBounds(min, max):
+    def decorator(func):
+        def wrapper(*args, **kargs):
+            offspring = func(*args, **kargs)
+            for child in offspring:
+                for i in range(len(child)):
+                    if child[i] > max:
+                        child[i] = max
+                    elif child[i] < min:
+                        child[i] = min
+            return offspring
+        return wrapper
+    return decorator
 
 # register a mutation operator with a probability to
 # flip each attribute/gene of 0.05
-toolbox.register("mutate", tools.mutFlipBit, indpb=0.05)
+toolbox.register("mutate", tools.mutGaussian, mu=0.0, sigma=0.2, indpb=0.2)
+toolbox.decorate("mutate", checkBounds(0, 1))
 
 # operator for selecting individuals for breeding the next
 # generation: each individual of the current generation
@@ -62,7 +78,7 @@ pop = toolbox.population(n=300)
 #       are crossed
 #
 # MUTPB is the probability for mutating an individual
-CXPB, MUTPB = 0.5, 0.2
+CXPB, MUTPB = 0.5, 0.01
 
 print("Start of evolution")
 
@@ -75,13 +91,17 @@ print("  Evaluated %i individuals" % len(pop))
 
 # Extracting all the fitnesses of
 fits = [ind.fitness.values[0] for ind in pop]
-maxs = [max(fits)]
+
+def statFunc(fits):
+    return np.max(fits)
+
+stat_arr = [statFunc(fits)]
 
 # Variable keeping track of the number of generations
 g = 0
 
 # Begin the evolution
-while max(fits) < 100 and g < 1000:
+while max(fits) < 400 and g < 200:
     # A new generation
     g = g + 1
     print("-- Generation %i --" % g)
@@ -93,10 +113,9 @@ while max(fits) < 100 and g < 1000:
 
     # Apply crossover and mutation on the offspring
     for child1, child2 in zip(offspring[::2], offspring[1::2]):
-
         # cross two individuals with probability CXPB
         if random.random() < CXPB:
-            toolbox.mate(child1, child2)
+            toolbox.mate(child1, child2, 0.1)
 
             # fitness values of the children
             # must be recalculated later
@@ -104,7 +123,6 @@ while max(fits) < 100 and g < 1000:
             del child2.fitness.values
 
     for mutant in offspring:
-
         # mutate an individual with probability MUTPB
         if random.random() < MUTPB:
             toolbox.mutate(mutant)
@@ -116,28 +134,30 @@ while max(fits) < 100 and g < 1000:
     for ind, fit in zip(invalid_ind, fitnesses):
         ind.fitness.values = fit
 
-    print("  Evaluated %i individuals" % len(invalid_ind))
+    # print("  Evaluated %i individuals" % len(invalid_ind))
 
     # The population is entirely replaced by the offspring
     pop[:] = offspring
 
     # Gather all the fitnesses in one list and print the stats
     fits = [ind.fitness.values[0] for ind in pop]
-    maxs.append(max(fits))
 
     length = len(pop)
     mean = sum(fits) / length
     sum2 = sum(x*x for x in fits)
     std = abs(sum2 / length - mean**2)**0.5
 
-    print("  Min %s" % min(fits))
-    print("  Max %s" % max(fits))
-    print("  Avg %s" % mean)
-    print("  Std %s" % std)
+    stat_arr.append(statFunc(fits))
+
+    # print("  Min %s" % min(fits))
+    # print("  Max %s" % max(fits))
+    # print("  Avg %s" % mean)
+    # print("  Std %s" % std)
 
 print("-- End of (successful) evolution --")
+plt.clf()
 plt.ion()
-plt.plot(maxs)
+plt.plot(stat_arr)
 plt.show()
 
 best_ind = tools.selBest(pop, 1)[0]
